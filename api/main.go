@@ -65,7 +65,7 @@ type GuildInfo struct {
 	PresenceCount float64
 }
 
-func GetGuildInfo(id string) (*GuildInfo, error) {
+func GetGuildInfo(id string) ([]byte, error) {
 	info, err := getDiscordJson(Guild, id)
 	if err != nil {
 		return nil, err
@@ -82,7 +82,9 @@ func GetGuildInfo(id string) (*GuildInfo, error) {
 		PresenceCount: info["presence_count"].(float64),
 	}
 
-	return &guildInfo, nil
+	guildJson, err := json.Marshal(guildInfo)
+
+	return guildJson, err
 }
 
 type Avatar struct {
@@ -106,7 +108,7 @@ type UserInfo struct {
 	Banner Banner
 }
 
-func GetUserInfo(id string) (*UserInfo, error) {
+func GetUserInfo(id string) ([]byte, error) {
 	info, err := getDiscordJson(User, id)
 	if err != nil {
 		return nil, err
@@ -143,10 +145,12 @@ func GetUserInfo(id string) (*UserInfo, error) {
 		Badges: nil,
 	}
 
-	return &userInfo, nil
+	userJson, err := json.Marshal(userInfo)
+
+	return userJson, err
 }
 
-func GetApplicationInfo(id string) (*map[string]interface{}, error) {
+func GetApplicationInfo(id string) ([]byte, error) {
 	info, err := getDiscordJson(Application, id)
 	if err != nil {
 		return nil, err
@@ -156,5 +160,7 @@ func GetApplicationInfo(id string) (*map[string]interface{}, error) {
 		return nil, errors.New("The id provided is probably not an application.")
 	}
 
-	return &info, nil
+	applicationJson, err := json.Marshal(info)
+
+	return applicationJson, err
 }

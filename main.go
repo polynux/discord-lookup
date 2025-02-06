@@ -1,15 +1,17 @@
 package main
 
 import (
-	"flag"
 	"log"
+	"net/http"
 	"os"
+	"strconv"
 
 	"discord-lookup/api"
 
 	"github.com/joho/godotenv"
-	"github.com/yassinebenaid/godump"
 )
+
+var port = 3000
 
 func init() {
 	godotenv.Load(".env.local", ".env")
@@ -17,34 +19,65 @@ func init() {
 	if os.Getenv("DISCORD_TOKEN") == "" {
 		log.Fatal("No discord token found in .env file")
 	}
+
+	if os.Getenv("PORT") != "" {
+		localport, err := strconv.Atoi(os.Getenv("PORT"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		port = localport
+	}
 }
 
 func main() {
-	var id string
-	flag.StringVar(&id, "id", "", "Use local database")
-	var infoFlag string
-	flag.StringVar(&infoFlag, "info", "user", "Info to get: user, guild or application")
-	flag.Parse()
+	router := http.NewServeMux()
 
-	if id == "" || infoFlag == "" {
-		log.Fatal("You need to provide both id and info flag")
-	}
+	router.HandleFunc("GET /v1/user/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		_, err := strconv.Atoi(id)
+		if err != nil {
+			http.Error(w, "The id provided is not a valid discord id", 400)
+			return
+		}
+		userInfo, err := api.GetUserInfo(id)
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		w.Write(userInfo)
+	})
+	router.HandleFunc("GET /v1/guild/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		_, err := strconv.Atoi(id)
+		if err != nil {
+			http.Error(w, "The id provided is not a valid discord id", 400)
+			return
+		}
+		guildInfo, err := api.GetGuildInfo(id)
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		w.Write(guildInfo)
+	})
+	router.HandleFunc("GET /v1/application/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		_, err := strconv.Atoi(id)
+		if err != nil {
+			http.Error(w, "The id provided is not a valid discord id", 400)
+			return
+		}
+		applicationInfo, err := api.GetApplicationInfo(id)
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		w.Write(applicationInfo)
+	})
 
-	var info interface{}
-	var err error
-	switch infoFlag {
-	case "user":
-		info, err = api.GetUserInfo(id)
-	case "guild":
-		info, err = api.GetGuildInfo(id)
-	case "application":
-		info, err = api.GetApplicationInfo(id)
-	default:
-		log.Fatal("Wrong info type")
-	}
-
+	err := http.ListenAndServe(":"+strconv.Itoa(port), router)
 	if err != nil {
 		log.Fatal(err)
 	}
-	godump.Dump(info)
+	log.Printf("Server listening on port %d", port)
 }
