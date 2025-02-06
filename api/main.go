@@ -2,14 +2,18 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type Info int
+
+type JsonObj map[string]interface{}
 
 const (
 	Guild Info = iota
@@ -17,16 +21,16 @@ const (
 	Application
 )
 
-func getDiscordJson(i Info, id string) (interface{}, error) {
+func getDiscordJson(i Info, id string) (map[string]interface{}, error) {
 	var url string
 	log.Printf("%d", i)
 	switch i {
 	case Guild:
-		url = "https://canary.discord.com/api/v10/guilds/%s/widget.json"
+		url = "https://discord.com/api/v10/guilds/%s/widget.json"
 	case User:
-		url = "https://canary.discord.com/api/v10/users/%s"
+		url = "https://discord.com/api/v10/users/%s"
 	case Application:
-		url = "https://canary.discord.com/api/v10/applications/%s/rpc"
+		url = "https://discord.com/api/v10/applications/%s/rpc"
 	}
 
 	url = fmt.Sprintf(url, id)
@@ -48,34 +52,108 @@ func getDiscordJson(i Info, id string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	var value interface{}
+	var value map[string]interface{}
 	err = json.Unmarshal(htmldata, &value)
 
 	return value, err
 }
 
-func GetGuildInfo(id string) (*interface{}, error) {
+type GuildInfo struct {
+	Id            string
+	Name          string
+	InstantInvite string
+	PresenceCount float64
+}
+
+func GetGuildInfo(id string) (*GuildInfo, error) {
 	info, err := getDiscordJson(Guild, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return &info, nil
+	if info["code"] != nil {
+		return nil, errors.New("The guild is either non-existent, unavailable, or has Server Widget/Discovery disabled.")
+	}
+
+	guildInfo := GuildInfo{
+		Id:            id,
+		Name:          info["name"].(string),
+		InstantInvite: info["instant_invite"].(string),
+		PresenceCount: info["presence_count"].(float64),
+	}
+
+	return &guildInfo, nil
 }
 
-func GetUserInfo(id string) (*interface{}, error) {
+type Avatar struct {
+	Id         string
+	Link       string
+	IsAnimated bool
+}
+
+type Banner struct {
+	Id         string
+	Link       string
+	IsAnimated bool
+	Color      string
+}
+
+type UserInfo struct {
+	Id     string
+	Tag    string
+	Badges []string
+	Avatar Avatar
+	Banner Banner
+}
+
+func GetUserInfo(id string) (*UserInfo, error) {
 	info, err := getDiscordJson(User, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return &info, nil
+	var avatarLink string
+	if info["avatar"] != nil {
+		avatarLink = fmt.Sprintf("https://cdn.discordapp.com/avatars/%s/%s", id, info["avatar"])
+	}
+
+	var banner Banner
+	if info["banner"] != nil {
+		var bannerLink string
+		if info["banner"] != nil {
+			bannerLink = fmt.Sprintf("https://cdn.discordapp.com/banners/%s/%s", id, info["banner"])
+		}
+		banner = Banner{
+			Id:         info["banner"].(string),
+			Link:       bannerLink,
+			IsAnimated: info["banner"] != nil && strings.HasPrefix(info["banner"].(string), "a_"),
+			Color:      info["banner_color"].(string),
+		}
+	}
+
+	userInfo := UserInfo{
+		Id:  id,
+		Tag: info["username"].(string),
+		Avatar: Avatar{
+			Id:         info["avatar"].(string),
+			Link:       avatarLink,
+			IsAnimated: info["avatar"] != nil && strings.HasPrefix(info["avatar"].(string), "a_"),
+		},
+		Banner: banner,
+		Badges: nil,
+	}
+
+	return &userInfo, nil
 }
 
-func GetApplicationInfo(id string) (*interface{}, error) {
+func GetApplicationInfo(id string) (*map[string]interface{}, error) {
 	info, err := getDiscordJson(Application, id)
 	if err != nil {
 		return nil, err
+	}
+
+	if info["code"] != nil {
+		return nil, errors.New("The id provided is probably not an application.")
 	}
 
 	return &info, nil

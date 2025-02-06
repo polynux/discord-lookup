@@ -12,10 +12,7 @@ import (
 )
 
 func init() {
-	err := godotenv.Load(".env.local", ".env")
-	if err != nil {
-		log.Println("No .env file found")
-	}
+	godotenv.Load(".env.local", ".env")
 
 	if os.Getenv("DISCORD_TOKEN") == "" {
 		log.Fatal("No discord token found in .env file")
@@ -41,7 +38,7 @@ func main() {
 	case "guild":
 		info, err = api.GetGuildInfo(id)
 	case "application":
-		info, err = api.GetGuildInfo(id)
+		info, err = api.GetApplicationInfo(id)
 	default:
 		log.Fatal("Wrong info type")
 	}
